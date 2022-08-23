@@ -472,31 +472,3 @@ Wrote results/pgbench-buffercache-202205181030-cto13-run1-s15000-c450-T3600.png
 ```
 
 ![pgbench-buffercache-202205181030-cto13-run1-s15000-c450-T3600.png](images/plot-csv.png)
-
-# TODO
-
-We want to be able to publish the framework independently of the Autotuner code. That requires some work:
-
-* Current ansible directory
-  * Rename initially to retain custom playbooks
-  * ~~Custom playbooks:~~
-    * ~~build-autotuner.yml~~
-    * ~~clean-autotuner.yml~~
-    * ~~tune-postgres.yml~~
-  * ~~Remove all "generic" playbooks~~
-
-* New "autotuning-ansible" repo based on ansible directory 
-  * ~~Would need a new/revised README~~
-  * ~~Restrict to only "generic" playbooks~~
-  * Add autotuning-ansible as git submodule to autotuning
-  * ~~EDB repo~~
-    * ~~"Setup the EDB repo" task only when EDB_REPO_USER is set~~
-    * ~~"Add EDB repo credentials" task only when EDB_REPO_USER is set~~
-    * ~~Only install EPAS if EDB_REPO_USER is set.~~
-    * ~~Allows anyone with web access to use/deploy EPAS as well~~
-  * ~~Move AUTOTUNER_* config variables as facts in playbooks/roles/common/tasks/main.yml~~
-    * ~~These are based on RUN_NUM anyway, so should be generated~~
-    * ~~Rename AUTOTUNER_DB_TYPE to POSTGRES_DB_TYPE~~
-    * ~~Not sure about AUTOTUNING_DEPLOY_KEY~~
-  * ~~Need new "generic" tune-postgres.yml~~
-  * ~~How do we invoke the custom autotuning build / run playbooks?~~
