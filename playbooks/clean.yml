@@ -1,0 +1,19 @@
+---
+- import_playbook: clean-postgres.yml
+
+- hosts:
+    - benchmark
+  roles:
+    - common
+
+  tasks:
+      - name: Determine if local tasks exist
+        local_action: stat path=../../ansible-local/hooks/clean.yml
+        register: local_clean
+
+      - name: Calling clean hook
+        debug:
+          msg: "{{ 'Loading additional tasks from ../../ansible-local/hooks/clean.yml' if local_clean.stat.exists else 'Local clean not found.' }}"
+
+      - include_tasks: ../../ansible-local/hooks/clean.yml
+        when: local_clean.stat.exists

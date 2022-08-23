@@ -1,0 +1,32 @@
+# Copy this file to inventory.yml, and edit to suit
+
+# The benchmark group is for servers that will run benchmarks
+# The controller group is for servers that will manage the benchmark servers
+
+# If separate driver machines are to be used, add them to the "driver" group
+# and then add a var to the benchmark host called "driver" with a value
+# corresponding to the name of the driver host. Don't use the same driver for
+# multiple hosts!!
+#
+# In the example below, server1 will be driven by server6, and server2 by
+# server7. server3 and server4 will run HammerDB locally.
+
+all:
+  vars:
+    ansible_timeout: 180
+  children:
+    benchmark:
+      hosts:
+        server1.example.com:
+          driver: server6.example.com
+        server2.example.com:
+          driver: server7.example.com
+        server3.example.com:
+        server4.example.com:
+    driver:
+      hosts:
+        server6.example.com:
+        server7.example.com:
+    controller:
+      hosts:
+        server5.example.com:

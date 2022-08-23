@@ -1,0 +1,58 @@
+---
+- hosts: driver
+  name: Gather facts from drivers
+  tasks: [ ]
+
+- hosts:
+  - benchmark
+  roles:
+  - common
+
+  tasks:
+    - name: Run initdb
+      command: "{{ postgres_bin }}/initdb -D ~/pgsql/data"
+      args:
+        creates: ~/pgsql/data/PG_VERSION
+
+    - name: Set the socket directory
+      shell: |
+        echo "unix_socket_directories = '/tmp'" >> ~/pgsql/data/postgresql.conf
+        touch ~/pgsql/data/.postgres-socket
+      args:
+        creates: ~/pgsql/data/.postgres-socket
+
+    - name: Enable TCP/IP connections if we're using a separate driver
+      shell: |
+        echo "listen_addresses = '*'" >> ~/pgsql/data/postgresql.conf
+        touch ~/pgsql/data/.postgres-tcpip
+      args:
+        creates: ~/pgsql/data/.postgres-tcpip
+      when: hostvars[inventory_hostname].driver is defined
+
+    - name: Allow access to the benchmark machine from the driver if required
+      shell: |
+        echo "host all all {{ hostvars[hostvars[inventory_hostname].driver].ansible_default_ipv4.address }}/32 scram-sha-256" >> ~/pgsql/data/pg_hba.conf
+        touch ~/pgsql/data/.postgres-pghba
+      args:
+        creates: ~/pgsql/data/.postgres-pghba
+      when: hostvars[inventory_hostname].driver is defined
+
+    - name: Determine if local tasks exist
+      local_action: stat path=../../ansible-local/hooks/init-postgres.yml
+      register: local_init_postgres
+
+    - name: Calling init_postgres hook
+      debug:
+        msg: "{{ 'Loading additional tasks from ../../ansible-local/hooks/init_postgres.yml' if local_init_postgres.stat.exists else 'Local init_postgres not found.' }}"
+
+    - include_tasks: ../../ansible-local/hooks/init-postgres.yml
+      when: local_init_postgres.stat.exists
+
+    - include: tools/start-postgres.yml
+
+    - name: Set the {{ ansible_user_id }} role password
+      shell: |
+        {{ postgres_bin }}/psql -h /tmp -c "ALTER ROLE {{ ansible_user_id }} PASSWORD '{{ lookup('password', '{{ playbook_dir }}/../credentials/{{ ansible_user_id }}.txt') }}' ;" postgres
+      when: hostvars[inventory_hostname].driver is defined
+
+    - include: tools/stop-postgres.yml

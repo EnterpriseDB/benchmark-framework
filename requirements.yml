@@ -1,0 +1,5 @@
+roles:
+  - name: geerlingguy.node_exporter
+
+collections:
+  - name: ansible.posix

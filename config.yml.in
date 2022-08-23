@@ -1,0 +1,97 @@
+# Copy this file to config.yml, and edit to suit
+
+# Variables necessary for setup / deployment
+EDB_REPO_USER:
+EDB_REPO_PW:
+
+# Postgres variant, should be one of epas or postgres.
+POSTGRES_DB_TYPE: postgres
+
+# Additional monitoring options
+MONITOR_PG_BUFFERCACHE: true
+MONITOR_PG_STAT_DATABASE: true
+
+# Run number. This is used to easily allow multiple benchmark runs using
+# incremental sets of Postgres configuration parameters. Generally this
+# would be overridden on the command line by a script calling a playbook
+# in a loop, e.g:
+#
+# for n in {1..6}
+#  do
+#      ansible-playbook -i inventory.yml --extra-vars "RUN_NUM=$n" playbooks/scratch-run-pgbench.yml
+#  done
+RUN_NUM: 1
+
+# Sysctls to set on the benchmark machines. Always "reset" these to
+# default values if you don't need to adjust them, as there's no
+# simple way to reset them short of manually clearing /etc/sysctl.conf
+# followed by a system reboot.
+SYSCTLS:
+    - name: vm.nr_hugepages
+      value: 0
+
+# Additional GUCs to set when tuning.
+# These will override anything already set.
+#OVERRIDE_GUCS:
+#  - name: wal_buffers
+#    value: 64KB
+#  - name: max_connections
+#    value: 120
+
+# pgbench parameters
+PGBENCH_CLEAR_CACHE_AND_PREWARM: true
+PGBENCH_SCALE_FACTOR: 10000
+PGBENCH_CLIENTS: 75
+PGBENCH_RUN_TIME: 3600
+
+# TPROC-C (HammerDB) parameters
+#
+# Notes:
+#    Each virtual user will use up to 10 warehouses, so
+#    usually warehouses == virtual users * 10
+#
+# Sizes (PG 14.2, default options):
+#   Warehouses      DB Size
+#   1               117 MB
+#   5               510 MB
+#   10              998 MB
+#   20              1974 MB
+#   50              4886 MB
+#   100             9754 MB
+#   200             19 GB
+#   400             35 GB
+#   750             71 GB
+#   1500            143 GB
+TPROCC_CLEAR_CACHE_AND_PREWARM: true
+TPROCC_WAREHOUSES: 750
+TPROCC_SCHEMA_USERS: 15
+TPROCC_VIRTUAL_USERS: 75
+TPROCC_PARTITION: false
+TPROCC_VACUUM: false
+TPROCC_DRITA_SNAPS: false
+TPROCC_ORACLE_COMPAT: false
+TPROCC_STORED_PROCS: false
+TPROCC_KEY_AND_THINK: false
+TPROCC_RAMPUP_TIME: 5
+TPROCC_RUN_TIME: 60
+
+# TPROC-H (HammerDB) parameters
+#
+# Notes:
+#    Scale factor must be one of 1, 10, 30, 100, 300, 1000
+#
+# Sizes (PG 14.2, default options):
+#   Scale Factor    DB Size
+#   1               2065 MB
+#   10              20 GB
+#   30              50 GB
+#   100             159 GB
+TPROCH_CLEAR_CACHE_AND_PREWARM: true
+TPROCH_VIRTUAL_USERS: 3
+TPROCH_SCALE_FACTOR: 30
+TPROCH_THREADS: 15
+TPROCH_TOTAL_QUERYSETS: 1
+TPROCH_REFRESH_ON: false
+TPROCH_DEGREE_OF_PARALLEL: 5
+TPROCH_UPDATE_SETS: 1
+TPROCH_TRICKLE_REFRESH: 1000

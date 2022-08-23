@@ -1,0 +1,42 @@
+---
+
+- hosts:
+    - benchmark
+  gather_facts: no
+
+  roles:
+    - common
+
+  tasks:
+
+    - include: tools/start-postgres.yml
+
+    - name: Remove existing configuration
+      file:
+        path: ~/pgsql/data/postgresql.auto.conf
+        state: absent
+
+    - name: Create extensions
+      include_role:
+        name: create-extensions
+      vars:
+        database: postgres
+
+    - name: Configure override GUCs
+      shell: |
+        {{ postgres_bin }}/psql -h /tmp -c "ALTER SYSTEM SET {{ item.name }} TO '{{ item.value }}';" postgres
+      with_items: "{{ OVERRIDE_GUCS }}"
+      when: OVERRIDE_GUCS is defined
+
+    - name: Determine if local tasks exist
+      local_action: stat path=../../ansible-local/hooks/tune-postgres.yml
+      register: local_tune_postgres
+
+    - name: Calling tune_postgres hook
+      debug:
+        msg: "{{ 'Loading additional tasks from ../../ansible-local/hooks/tune_postgres.yml' if local_tune_postgres.stat.exists else 'Local tune_postgres not found.' }}"
+
+    - include_tasks: ../../ansible-local/hooks/tune-postgres.yml
+      when: local_tune_postgres.stat.exists
+
+    - include: tools/stop-postgres.yml

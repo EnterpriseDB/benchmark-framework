@@ -1,0 +1,279 @@
+---
+- hosts:
+  - all
+  roles:
+    - common
+
+  tasks:
+    - name: Import the PostgreSQL package signing key
+      rpm_key:
+        state: present
+        key: https://download.postgresql.org/pub/repos/yum/RPM-GPG-KEY-PGDG
+      become: yes
+
+    - name: Setup the PostgreSQL repo
+      yum:
+        name: "https://download.postgresql.org/pub/repos/yum/reporpms/EL-{{ ansible_facts['distribution_major_version'] }}-x86_64/pgdg-redhat-repo-latest.noarch.rpm"
+        state: present
+      become: yes
+
+    - name: Disable the built-in PostgreSQL module
+      command: dnf -qy module disable postgresql
+      args:
+        warn: false
+      become: yes
+
+    - name: Enable the PostgreSQL debuginfo repo
+      command: dnf config-manager --set-enabled pgdg14-debuginfo
+      args:
+        warn: false
+      become: yes
+
+    - name: Setup the EDB repo
+      yum:
+        name: https://yum.enterprisedb.com/edbrepos/edb-repo-latest.noarch.rpm
+        state: present
+        disable_gpg_check: yes
+      become: yes
+      when: EDB_REPO_USER is defined and EDB_REPO_USER
+
+    - name: Add EDB repo credentials
+      replace:
+        path: /etc/yum.repos.d/edb.repo
+        regexp: "<username>:<password>"
+        replace: "{{ EDB_REPO_USER }}:{{ EDB_REPO_PW }}"
+        backup: yes
+      become: yes
+      when: EDB_REPO_USER is defined and EDB_REPO_USER
+
+    - name: Force a dnf cache update to ensure keys are installed
+      command: dnf -y makecache
+      args:
+        warn: false
+      become: yes
+
+    - name: Ensure required packages are installed
+      dnf:
+        name:
+          - bison
+          - bzip2
+          - chrony
+          - clang
+          - epel-release
+          - edb-as14-server
+          - edb-as14-server-devel
+          - edb-as14-server-contrib
+          - firewalld
+          - flex
+          - gcc
+          - git
+          - krb5-devel
+          - libicu-devel
+          - libpq
+          - libuuid-devel
+          - libxml2-devel
+          - libxslt-devel
+          - lvm2
+          - llvm-devel
+          - make
+          - mdadm
+          - nano
+          - net-tools
+          - numactl
+          - openldap-devel
+          - openssl-devel
+          - pam-devel
+          - perf
+          - perl-devel
+          - perl-ExtUtils-Embed
+          - postgresql14-contrib
+          - postgresql14-devel
+          - postgresql14-server
+          - postgresql14-contrib-debuginfo
+          - postgresql14-devel-debuginfo
+          - postgresql14-server-debuginfo
+          - python3-devel
+          - python3-firewall
+          - readline-devel
+          - sysstat
+          - systemd-devel
+          - tar
+          - tcl-devel
+          - tmux
+          - tuned
+          - zlib-devel
+        state: latest
+        update_cache: yes
+      become: yes
+
+    - name: Ensure required packages are installed (EDB)
+      dnf:
+        name:
+          - edb-as14-server
+          - edb-as14-server-devel
+          - edb-as14-server-contrib
+        state: latest
+        update_cache: yes
+      become: yes
+      when: EDB_REPO_USER is defined and EDB_REPO_USER
+
+    - name: Start chronyd
+      service:
+        name: chronyd
+        enabled: yes
+        state: started
+      become: yes
+
+    - name: Create sysstat timer override directory
+      file:
+        path: /etc/systemd/system/sysstat-collect.timer.d
+        state: directory
+      become: yes
+
+    - name: Configure sysstat to run every minute
+      copy:
+        dest: /etc/systemd/system/sysstat-collect.timer.d/override.conf
+        content: |
+          [Timer]
+          OnCalendar= # Clear previous definition
+          OnCalendar=*:*:00
+      become: yes
+
+    - name: Start sysstat for sar data
+      service:
+        name: sysstat
+        enabled: yes
+        daemon_reload: yes
+        state: started
+      become: yes
+
+    - name: Install HammerDB
+      unarchive:
+        src: https://github.com/TPC-Council/HammerDB/releases/download/v4.3/HammerDB-4.3-Linux.tar.gz
+        dest: /usr/local/
+        owner: root
+        group: root
+        remote_src: yes
+      become: yes
+
+    - name: Create data dump directory
+      file:
+        path: ~/pgsql/dump
+        state: directory
+
+- hosts:
+  - all
+
+  roles:
+    - role: geerlingguy.node_exporter
+      node_exporter_options: --collector.vmstat.fields='.*'
+      become: yes
+
+  tasks:
+    - name: Open the node_exporter port
+      firewalld:
+        zone: public
+        port: 9100/tcp
+        permanent: yes
+        immediate: yes
+        state: enabled
+      become: yes
+      ignore_errors: yes
+
+- hosts:
+  - benchmark
+  roles:
+    - common
+
+  tasks:
+    - name: Open the PostgreSQL port
+      firewalld:
+        zone: public
+        port: 5432/tcp
+        permanent: yes
+        immediate: yes
+        state: enabled
+      become: yes
+      ignore_errors: yes
+
+    - name: Open the EPAS port
+      firewalld:
+        zone: public
+        port: 5444/tcp
+        permanent: yes
+        immediate: yes
+        state: enabled
+      become: yes
+      ignore_errors: yes
+      when: EDB_REPO_USER is defined and EDB_REPO_USER
+
+    - name: Create tuned profile directory
+      file:
+        path: /etc/tuned/postgres
+        owner: root
+        group: root
+        mode: '0755'
+        state: directory
+      become: yes
+      notify: Restart server
+
+    - name: Create tuned profile
+      copy:
+        dest: /etc/tuned/postgres/tuned.conf
+        content: |
+          [main]
+          summary=Tuned profile for PostgreSQL Instances
+
+          [bootloader]
+          cmdline=transparent_hugepage=never
+
+          [cpu]
+          governor=performance
+          energy_perf_bias=performance
+          min_perf_pct=100
+
+          [sysctl]
+          vm.swappiness = 10
+          vm.dirty_expire_centisecs = 500
+          vm.dirty_writeback_centisecs = 250
+          vm.dirty_ratio = 10
+          vm.dirty_background_ratio = 3
+          vm.overcommit_memory=2
+          vm.overcommit_kbytes={{ ansible_memtotal_mb * 1024 }}
+          net.ipv4.tcp_timestamps=0
+
+          [vm]
+          transparent_hugepages=never
+      become: yes
+      notify: Restart server
+
+    - name: Start tuned
+      service:
+        name: tuned
+        enabled: yes
+        state: started
+      become: yes
+      notify: Restart server
+
+    - name: Enable postgres tuned profile
+      shell: tuned-adm profile postgres && touch /etc/tuned/.postgres-profile
+      args:
+        creates: /etc/tuned/.postgres-profile
+      become: yes
+      notify: Restart server
+
+    - name: Determine if local tasks exist
+      local_action: stat path=../../ansible-local/hooks/config-system.yml
+      register: local_config_system
+
+    - name: Calling config_system hook
+      debug:
+        msg: "{{ 'Loading additional tasks from ../../ansible-local/hooks/config_system.yml' if local_config_system.stat.exists else 'Local config_system not found.' }}"
+
+    - include_tasks: ../../ansible-local/hooks/config-system.yml
+      when: local_config_system.stat.exists
+
+  handlers:
+    - name: Restart server
+      reboot:
+      become: yes

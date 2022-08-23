@@ -1,0 +1,11 @@
+# Stop pg_buffercache monitoring
+
+- name: Stop buffer cache monitoring
+  shell: |
+    kill $(ps -ef | grep buffercache_monitor.sh | grep -v grep | awk '{ print $2 }')
+
+- name: Download buffer cache log
+  fetch:
+    src: "{{ buffercache_log }}"
+    dest: ../results/
+    flat: yes

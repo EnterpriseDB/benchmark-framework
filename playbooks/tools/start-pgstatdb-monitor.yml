@@ -1,0 +1,36 @@
+# Start monitoring pg_stat_database
+
+---
+- name: Create the pg_stat_database monitoring script
+  copy:
+    dest: "pgstatdb_monitor.sh"
+    mode: 0755
+    content: |
+      #!/bin/bash
+      
+      echo "timestamp,blks_read,blks_hit"
+      
+      PREV_READ=0
+      PREV_HIT=0
+      
+      while true
+      do
+          DATA=$({{ postgres_bin }}/psql --csv -q -t -h {{ hostvars[inventory_hostname].ansible_default_ipv4.address if hostvars[inventory_hostname].driver is defined else '/tmp' }} -c "SELECT now(), sum(blks_read), sum(blks_hit) FROM pg_stat_database;" postgres)
+      
+          TS=$(echo $DATA | awk -F, '{ print $1 }')
+          READ=$(echo $DATA | awk -F, '{ print $2 }')
+          HIT=$(echo $DATA | awk -F, '{ print $3 }')
+      
+          echo $TS,$(($READ-$PREV_READ)),$(($HIT-$PREV_HIT))
+      
+          PREV_READ=$READ
+          PREV_HIT=$HIT
+      
+          sleep 10
+      done
+
+- name: Start pg_stat_database monitoring
+  shell: |
+    nohup ./pgstatdb_monitor.sh >> {{ pgstatdb_log }} &
+  environment:
+    PGPASSWORD: "{{ lookup('password', '{{ playbook_dir }}/../credentials/{{ ansible_user_id }}.txt') }}"

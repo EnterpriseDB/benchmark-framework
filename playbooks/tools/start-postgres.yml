@@ -1,0 +1,4 @@
+- name: Start PostgreSQL
+  command: "{{ postgres_bin }}/pg_ctl -D ~/pgsql/data start"
+  args:
+    creates: ~/pgsql/data/postmaster.pid

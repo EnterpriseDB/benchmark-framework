@@ -1,0 +1,49 @@
+---
+
+- hosts:
+    - benchmark
+
+  roles:
+    - common
+
+  tasks:
+
+    - include: tools/start-postgres.yml
+
+    - name: Generate a database ID
+      set_fact:
+        db_id: "pgbench-s{{ PGBENCH_SCALE_FACTOR }}"
+
+    - name: "Check the status of the {{ db_id }} backup"
+      stat:
+        path: "~/pgsql/dump/{{ db_id }}.tar.gz"
+      register: dump_file
+
+    - name: Ensure pgbench of proper scale exists
+      block:
+        - name: Drop any existing pgbench database
+          command: "{{ postgres_bin }}/dropdb --if-exists -h /tmp pgbench"
+
+        - name: Create pgbench database
+          command: "{{ postgres_bin }}/createdb -h /tmp pgbench"
+
+        - name: Create pgbench schema
+          shell: |
+            echo "Creating schema using pgbench..."
+            {{ postgres_bin }}/pgbench -h {{ hostvars[inventory_hostname].ansible_default_ipv4.address if hostvars[inventory_hostname].driver is defined else '/tmp' }} -i -s {{ PGBENCH_SCALE_FACTOR }} pgbench
+          delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
+          environment:
+            PGPASSWORD: "{{ lookup('password', '{{ playbook_dir }}/../credentials/{{ ansible_user_id }}.txt') }}"
+
+        - include: tools/backup-postgres.yml
+
+      when: not dump_file.stat.exists
+
+    - include: tools/restore-postgres.yml
+      when: dump_file.stat.exists
+
+    - name: Create extensions
+      include_role:
+        name: create-extensions
+      vars:
+        database: pgbench

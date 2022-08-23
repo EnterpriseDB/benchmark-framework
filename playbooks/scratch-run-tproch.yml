@@ -1,0 +1,12 @@
+---
+- import_playbook: clean-postgres.yml
+- import_playbook: tune-sysctls.yml
+- import_playbook: init-postgres.yml
+
+- name: Tune Postgres for OLAP
+  import_playbook: tune-postgres.yml
+  vars:
+    BENCHMARK: tproch
+
+- import_playbook: init-tproch.yml
+- import_playbook: run-tproch.yml

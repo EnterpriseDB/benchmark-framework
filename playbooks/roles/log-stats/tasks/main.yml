@@ -1,0 +1,87 @@
+---
+
+- name: Record the server stats
+  shell: |
+    echo "" >> {{ log_file }}
+    echo "PostgreSQL config" >> {{ log_file }}
+    echo "================================================================================" >> {{ log_file }}
+    echo "" >> {{ log_file }}
+    
+    {{ postgres_bin }}/psql -h {{ host }} -c "SHOW ALL;" {{ database }} >> {{ log_file }}
+    
+    echo "" >> {{ log_file }}
+    echo "Database info" >> {{ log_file }}
+    echo "================================================================================" >> {{ log_file }}
+    echo "" >> {{ log_file }}
+    
+    {{ postgres_bin }}/psql -h {{ host }} -c "SELECT oid, datname, pg_size_pretty(pg_database_size(oid)) as size FROM pg_database;" {{ database }} >> {{ log_file }}
+    
+    echo "" >> {{ log_file }}
+    echo "Table info" >> {{ log_file }}
+    echo "================================================================================" >> {{ log_file }}
+    echo "" >> {{ log_file }}
+    
+    {{ postgres_bin }}/psql -h {{ host }} -c "SELECT c.oid, nspname AS namespace, relname AS tblname, pg_size_pretty(pg_table_size(c.oid)) as size FROM pg_class c, pg_namespace n WHERE c.relnamespace = n.oid AND relkind = 'r' AND nspname != 'pg_catalog' AND nspname != 'pg_toast' AND nspname != 'information_schema';" {{ database }} >> {{ log_file }}
+
+    echo "" >> {{ log_file }}
+    echo "Index info" >> {{ log_file }}
+    echo "================================================================================" >> {{ log_file }}
+    echo "" >> {{ log_file }}
+    
+    {{ postgres_bin }}/psql -h {{ host }} -c "SELECT c.oid, nspname AS namespace, relname AS tblname, pg_size_pretty(pg_table_size(c.oid)) as size FROM pg_class c, pg_namespace n WHERE c.relnamespace = n.oid AND relkind = 'i' AND nspname != 'pg_catalog' AND nspname != 'pg_toast' AND nspname != 'information_schema';" {{ database }} >> {{ log_file }}
+    
+    echo "" >> {{ log_file }}
+    echo "pg_stat_database" >> {{ log_file }}
+    echo "================================================================================" >> {{ log_file }}
+    echo "" >> {{ log_file }}
+    
+    {{ postgres_bin }}/psql -h {{ host }} -c "SELECT * FROM pg_stat_database;" {{ database }} >> {{ log_file }}
+    
+    echo "" >> {{ log_file }}
+    echo "pg_stat_user_tables" >> {{ log_file }}
+    echo "================================================================================" >> {{ log_file }}
+    echo "" >> {{ log_file }}
+    
+    {{ postgres_bin }}/psql -h {{ host }} -c "SELECT * FROM pg_stat_user_tables;" {{ database }} >> {{ log_file }}
+    
+    echo "" >> {{ log_file }}
+    echo "pg_stat_user_indexes" >> {{ log_file }}
+    echo "================================================================================" >> {{ log_file }}
+    echo "" >> {{ log_file }}
+    
+    {{ postgres_bin }}/psql -h {{ host }} -c "SELECT * FROM pg_stat_user_indexes;" {{ database }} >> {{ log_file }}
+    
+    echo "" >> {{ log_file }}
+    echo "pg_statio_user_tables" >> {{ log_file }}
+    echo "================================================================================" >> {{ log_file }}
+    echo "" >> {{ log_file }}
+    
+    {{ postgres_bin }}/psql -h {{ host }} -c "SELECT * FROM pg_statio_user_tables;" {{ database }} >> {{ log_file }}
+    
+    echo "" >> {{ log_file }}
+    echo "pg_statio_user_indexes" >> {{ log_file }}
+    echo "================================================================================" >> {{ log_file }}
+    echo "" >> {{ log_file }}
+    
+    {{ postgres_bin }}/psql -h {{ host }} -c "SELECT * FROM pg_statio_user_indexes;" {{ database }} >> {{ log_file }}
+    
+    echo "" >> {{ log_file }}
+    echo "pg_stat_bgwriter" >> {{ log_file }}
+    echo "================================================================================" >> {{ log_file }}
+    echo "" >> {{ log_file }}
+    
+    {{ postgres_bin }}/psql -h {{ host }} -c "SELECT * FROM pg_stat_bgwriter;" {{ database }} >> {{ log_file }}
+  delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
+  environment:
+    PGPASSWORD: "{{ lookup('password', '{{ playbook_dir }}/../credentials/{{ ansible_user_id }}.txt') }}"
+
+- name: Determine if local tasks exist
+  local_action: stat path=../../ansible-local/hooks/log-stats.yml
+  register: local_log_stats
+
+- name: Calling log_stats hook
+  debug:
+    msg: "{{ 'Loading additional tasks from ../../ansible-local/hooks/log-stats.yml' if local_log_stats.stat.exists else 'Local log-stats not found.' }}"
+
+- include_tasks: ../../ansible-local/hooks/log-stats.yml
+  when: local_log_stats.stat.exists

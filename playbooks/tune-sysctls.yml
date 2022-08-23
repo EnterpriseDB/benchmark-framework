@@ -1,0 +1,19 @@
+---
+
+- hosts:
+    - benchmark
+  gather_facts: no
+
+  roles:
+    - common
+
+  tasks:
+    - name: Set sysctls
+      ansible.posix.sysctl:
+        name: "{{ item.name }}"
+        value: "{{ item.value }}"
+        state: present
+        sysctl_set: yes
+        reload: yes
+      with_items: "{{ SYSCTLS }}"
+      become: yes

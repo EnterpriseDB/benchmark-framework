@@ -1,0 +1,33 @@
+# Restores a backup of a Postgres instance using parallel decompression
+#
+# This process includes saving the existing config so we don't lose any tuning
+# clobbered by the restore process, restoring the backup and saved config, and
+# finally restarting Postgres so everything is running.
+#
+# Variables:
+#   - db_id: Unique identifier for the backup we should restore.
+
+- name: Preserve existing server config
+  shell: "cp ~/pgsql/data/postgresql.conf ~/pgsql"
+
+- name: Preserve existing tuning config
+  shell: "cp ~/pgsql/data/postgresql.auto.conf ~/pgsql"
+
+- name: Preserve existing hba config
+  shell: "cp ~/pgsql/data/pg_hba.conf ~/pgsql"
+
+- include: tools/clean-postgres.yml
+
+- name: "Restore {{ db_id }} backup"
+  shell: "pigz -cd ~/pgsql/dump/{{ db_id }}.tar.gz | tar -C ~/pgsql -x"
+
+- name: Restore existing server config
+  shell: "cp ~/pgsql/postgresql.conf ~/pgsql/data"
+
+- name: Restore existing tuning config
+  shell: "cp ~/pgsql/postgresql.auto.conf ~/pgsql/data"
+
+- name: Restore existing hba config
+  shell: "cp ~/pgsql/pg_hba.conf ~/pgsql/data"
+
+- include: tools/start-postgres.yml

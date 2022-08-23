@@ -1,0 +1,15 @@
+---
+- name: Create pg_prewarm extension
+  shell: |
+    {{ postgres_bin }}/psql -h /tmp -c "CREATE EXTENSION IF NOT EXISTS pg_prewarm;" {{ database }}
+
+- name: Determine if local tasks exist
+  local_action: stat path=../../ansible-local/hooks/create-extensions.yml
+  register: local_create_extensions
+
+- name: Calling create_extensions hook
+  debug:
+    msg: "{{ 'Loading additional tasks from ../../ansible-local/hooks/create_extensions.yml' if local_create_extensions.stat.exists else 'Local create_extensions not found.' }}"
+
+- include_tasks: ../../ansible-local/hooks/create-extensions.yml
+  when: local_create_extensions.stat.exists

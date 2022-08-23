@@ -1,0 +1,188 @@
+---
+- hosts:
+    - benchmark
+  gather_facts: no
+
+  roles:
+    - common
+
+  tasks:
+    - include: tools/stop-postgres.yml
+      when: TPROCH_CLEAR_CACHE_AND_PREWARM
+
+    - name: Clear kernel cache and swap
+      shell: |
+        sync
+        echo 3 > /proc/sys/vm/drop_caches
+        swapoff -a
+        swapon -a
+      become: yes
+      when: TPROCH_CLEAR_CACHE_AND_PREWARM
+
+- hosts:
+    - benchmark
+
+  roles:
+    - common
+
+  tasks:
+    - include: tools/start-postgres.yml
+
+    - name: Create run script
+      copy:
+        dest: ~/tproch-run.tcl
+        content: |
+          dbset db pg
+          dbset bm TPC-H
+
+          diset connection pg_host {{ hostvars[inventory_hostname].ansible_default_ipv4.address if hostvars[inventory_hostname].driver is defined else '/tmp' }}
+          diset connection pg_port {{ postgres_port }}
+          diset tpch pg_tpch_superuser {{ ansible_user_id }}
+          diset tpch pg_tpch_superuserpass {{ lookup('password', '{{ playbook_dir }}/../credentials/{{ ansible_user_id }}.txt') }}
+          diset tpch pg_tpch_defaultdbase postgres
+          diset tpch pg_tpch_user {{ ansible_user_id }}
+          diset tpch pg_tpch_pass {{ lookup('password', '{{ playbook_dir }}/../credentials/{{ ansible_user_id }}.txt') }}
+          diset tpch pg_tpch_dbase tproch
+
+          diset tpch pg_scale_fact {{ TPROCH_SCALE_FACTOR }}
+          diset tpch pg_total_querysets {{ TPROCH_TOTAL_QUERYSETS }}
+          diset tpch pg_refresh_on {{ TPROCH_REFRESH_ON }}
+          diset tpch pg_degree_of_parallel {{ TPROCH_DEGREE_OF_PARALLEL }}
+          diset tpch pg_update_sets {{ TPROCH_UPDATE_SETS }}
+          diset tpch pg_trickle_refresh {{ TPROCH_TRICKLE_REFRESH }}
+
+          loadscript
+          print dict
+
+          vuset logtotemp 0
+          vuset vu {{ TPROCH_VIRTUAL_USERS }}
+          vucreate
+          vurun
+          waittocomplete
+      delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
+
+    - name: Generate the run log name
+      set_fact:
+        run_log: "~/pgsql/data/tproch-{{ ansible_date_time.year }}{{ ansible_date_time.month }}{{ ansible_date_time.day }}{{ ansible_date_time.hour }}{{ ansible_date_time.minute }}-{{ inventory_hostname_short }}-run{{ RUN_NUM }}-s{{ TPROCH_SCALE_FACTOR }}-u{{ TPROCH_VIRTUAL_USERS }}.log"
+
+    - name: Run log names
+      debug:
+        msg: "{{ run_log }}"
+
+    - name: Make sure we have a directory for the log file if using a driver machine
+      file:
+        path: ~/pgsql/data/
+        state: directory
+      when: hostvars[inventory_hostname].driver is defined
+      delegate_to: "{{ hostvars[inventory_hostname].driver }}"
+
+    - name: Record the config
+      shell: |
+        echo "################################################################################" >> {{ run_log }}
+        echo "Run started: $(date)" >> {{ run_log }}
+        echo "################################################################################" >> {{ run_log }}
+        echo "" >> {{ run_log }}
+
+        echo "Schema" >> {{ run_log }}
+        echo "================================================================================" >> {{ run_log }}
+        echo "" >> {{ run_log }}
+
+        cat ~/tproch-schema.tcl >> {{ run_log }}
+
+        echo "Benchmark" >> {{ run_log }}
+        echo "================================================================================" >> {{ run_log }}
+        echo "" >> {{ run_log }}
+
+        cat ~/tproch-run.tcl >> {{ run_log }}
+        echo "" >> {{ run_log }}
+      delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
+
+    - name: Log pre-run stats
+      include_role:
+        name: log-stats
+      vars:
+        log_file: "{{ run_log }}"
+        database: tproch
+        host: "{{ hostvars[inventory_hostname].ansible_default_ipv4.address if hostvars[inventory_hostname].driver is defined else '/tmp' }}"
+
+    - name: Generate the buffercache log name
+      set_fact:
+        buffercache_log: "~/pgsql/data/tproch-buffercache-{{ ansible_date_time.year }}{{ ansible_date_time.month }}{{ ansible_date_time.day }}{{ ansible_date_time.hour }}{{ ansible_date_time.minute }}-{{ inventory_hostname_short }}-run{{ RUN_NUM }}-s{{ TPROCH_SCALE_FACTOR }}-u{{ TPROCH_VIRTUAL_USERS }}.csv"
+      when: MONITOR_PG_BUFFERCACHE
+
+    - name: Start monitoring pg_buffercache
+      include: tools/start-buffercache-monitor.yml
+      when: MONITOR_PG_BUFFERCACHE
+      delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
+
+    - name: Generate the pg_stat_database log name
+      set_fact:
+        pgstatdb_log: "~/pgsql/data/tproch-pgstatdb-{{ ansible_date_time.year }}{{ ansible_date_time.month }}{{ ansible_date_time.day }}{{ ansible_date_time.hour }}{{ ansible_date_time.minute }}-{{ inventory_hostname_short }}-run{{ RUN_NUM }}-s{{ TPROCH_SCALE_FACTOR }}-u{{ TPROCH_VIRTUAL_USERS }}.csv"
+      when: MONITOR_PG_STAT_DATABASE
+
+    - name: Start monitoring pg_stat_database
+      include: tools/start-pgstatdb-monitor.yml
+      when: MONITOR_PG_STAT_DATABASE
+      delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
+
+    - name: Log prewarm start time
+      shell: |
+        echo "################################################################################" >> {{ run_log }}
+        echo "Pre-warm started: $(date)" >> {{ run_log }}
+        echo "################################################################################" >> {{ run_log }}
+        echo "" >> {{ run_log }}
+      when: PGBENCH_CLEAR_CACHE_AND_PREWARM
+      delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
+
+    - name: Prewarm the database
+      command: |
+        {{ postgres_bin }}/psql -h /tmp -c "SELECT relname, pg_prewarm(c.oid::regclass) FROM pg_class c, pg_namespace n WHERE c.relnamespace = n.oid AND n.nspname = 'public' AND (c.relkind = 'r' OR c.relkind = 'i');" tproch
+      when: TPROCH_CLEAR_CACHE_AND_PREWARM
+
+    - name: Log benchmark start time
+      shell: |
+        echo "################################################################################" >> {{ run_log }}
+        echo "Benchmark started: $(date)" >> {{ run_log }}
+        echo "################################################################################" >> {{ run_log }}
+        echo "" >> {{ run_log }}
+      delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
+
+    - name: Run HammerDB (TPROC-H)
+      shell: time (./hammerdbcli auto ~/tproch-run.tcl >> {{ run_log }}) >> {{ run_log }} 2>&1
+      args:
+        chdir: /usr/local/HammerDB-4.3
+      delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
+
+    - name: Record the stats
+      shell: |
+        echo "" >> {{ run_log }}
+        echo "################################################################################" >> {{ run_log }}
+        echo "Benchmark completed: $(date)" >> {{ run_log }}
+        echo "################################################################################" >> {{ run_log }}
+        echo "" >> {{ run_log }}
+      delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
+
+    - name: Stop monitoring pg_buffercache
+      include: tools/stop-buffercache-monitor.yml
+      when: MONITOR_PG_BUFFERCACHE
+      delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
+
+    - name: Stop monitoring pg_stat_database
+      include: tools/stop-pgstatdb-monitor.yml
+      when: MONITOR_PG_STAT_DATABASE
+      delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
+
+    - name: Log post-run stats
+      include_role:
+        name: log-stats
+      vars:
+        log_file: "{{ run_log }}"
+        database: tproch
+        host: "{{ hostvars[inventory_hostname].ansible_default_ipv4.address if hostvars[inventory_hostname].driver is defined else '/tmp' }}"
+
+    - name: Download results
+      fetch:
+        src: "{{ run_log }}"
+        dest: ../results/
+        flat: yes
+      delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"

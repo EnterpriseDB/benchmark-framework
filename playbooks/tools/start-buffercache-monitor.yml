@@ -1,0 +1,29 @@
+# Start monitoring pg_buffercache
+
+---
+- name: Create the pg_buffercache extension
+  shell: |
+    {{ postgres_bin }}/psql -h {{ hostvars[inventory_hostname].ansible_default_ipv4.address if hostvars[inventory_hostname].driver is defined else '/tmp' }} -c "CREATE EXTENSION pg_buffercache;" postgres
+  environment:
+    PGPASSWORD: "{{ lookup('password', '{{ playbook_dir }}/../credentials/{{ ansible_user_id }}.txt') }}"
+
+- name: Create the buffer cache monitoring script
+  copy:
+    dest: "buffercache_monitor.sh"
+    mode: 0755
+    content: |
+      #!/bin/sh
+      
+      echo "timestamp,usagecount_0,usagecount_1,usagecount_2,usagecount_3,usagecount_4,usagecount_5" > {{ buffercache_log }}
+      
+      while true
+      do
+          {{ postgres_bin }}/psql --csv -q -t -h {{ hostvars[inventory_hostname].ansible_default_ipv4.address if hostvars[inventory_hostname].driver is defined else '/tmp' }} -c "SELECT now(), count(*) FILTER (WHERE usagecount IS NULL), count(*) FILTER (WHERE usagecount = 1), count(*) FILTER (WHERE usagecount = 2), count(*) FILTER (WHERE usagecount = 3), count(*) FILTER (WHERE usagecount = 4), count(*) FILTER (WHERE usagecount = 5) FROM pg_buffercache;" postgres
+          sleep 10
+      done
+
+- name: Start buffer cache monitoring
+  shell: |
+    nohup ./buffercache_monitor.sh >> {{ buffercache_log }} &
+  environment:
+    PGPASSWORD: "{{ lookup('password', '{{ playbook_dir }}/../credentials/{{ ansible_user_id }}.txt') }}"

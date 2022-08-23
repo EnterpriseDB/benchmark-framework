@@ -1,0 +1,68 @@
+---
+
+- hosts:
+    - benchmark
+  roles:
+    - common
+
+  tasks:
+    - include: tools/start-postgres.yml
+
+    - name: Generate a database ID
+      set_fact:
+        db_id: "tproch-s{{ TPROCH_SCALE_FACTOR }}"
+
+    - name: "Check the status of the {{ db_id }} backup"
+      stat:
+        path: "~/pgsql/dump/{{ db_id }}.tar.gz"
+      register: dump_file
+
+    - name: Ensure tproch of proper scale exists
+      block:
+        - name: Drop any existing tproch database
+          command: "{{ postgres_bin }}/dropdb --if-exists -h /tmp tproch"
+
+        - name: Create schema build script
+          copy:
+            dest: "~/tproch-schema.tcl"
+            content: |
+              dbset db pg
+              dbset bm TPC-H
+
+              diset connection pg_host {{ hostvars[inventory_hostname].ansible_default_ipv4.address if hostvars[inventory_hostname].driver is defined else '/tmp' }}
+              diset connection pg_port {{ postgres_port }}
+              diset tpch pg_tpch_superuser {{ ansible_user_id }}
+              diset tpch pg_tpch_superuserpass {{ lookup('password', '{{ playbook_dir }}/../credentials/{{ ansible_user_id }}.txt') }}
+              diset tpch pg_tpch_defaultdbase postgres
+              diset tpch pg_tpch_user {{ ansible_user_id }}
+              diset tpch pg_tpch_pass {{ lookup('password', '{{ playbook_dir }}/../credentials/{{ ansible_user_id }}.txt') }}
+              diset tpch pg_tpch_dbase tproch
+
+              diset tpch pg_scale_fact {{ TPROCH_SCALE_FACTOR }}
+              diset tpch pg_num_tpch_threads {{ TPROCH_THREADS }}
+
+              print dict
+              buildschema
+              waittocomplete
+          delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
+
+        - name: Create tproch database and schema
+          shell: |
+            echo "Creating schema using HammerDB..."
+            ./hammerdbcli auto ~/tproch-schema.tcl
+          args:
+            chdir: /usr/local/HammerDB-4.3
+          delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
+
+        - include: tools/backup-postgres.yml
+
+      when: not dump_file.stat.exists
+
+    - include: tools/restore-postgres.yml
+      when: dump_file.stat.exists
+
+    - name: Create extensions
+      include_role:
+        name: create-extensions
+      vars:
+        database: tproch

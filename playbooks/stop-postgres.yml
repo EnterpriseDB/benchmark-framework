@@ -1,0 +1,10 @@
+---
+- hosts:
+    - benchmark
+  gather_facts: no
+
+  roles:
+    - common
+
+  tasks:
+    - include: tools/stop-postgres.yml

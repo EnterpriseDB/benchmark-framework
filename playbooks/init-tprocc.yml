@@ -1,0 +1,77 @@
+---
+
+- hosts:
+    - benchmark
+  roles:
+    - common
+
+  tasks:
+    - include: tools/start-postgres.yml
+
+    - name: Generate a database ID
+      set_fact:
+        db_id: "tprocc-w{{ TPROCC_WAREHOUSES }}-p{{ TPROCC_PARTITION }}-d{{ TPROCC_DRITA_SNAPS }}-o{{ TPROCC_ORACLE_COMPAT }}-s{{ TPROCC_STORED_PROCS }}"
+
+    - name: "Check the status of the {{ db_id }} backup"
+      stat:
+        path: "~/pgsql/dump/{{ db_id }}.tar.gz"
+      register: dump_file
+
+    - name: Ensure tprocc of proper scale exists
+      block:
+        - name: Drop any existing tprocc database
+          command: "{{ postgres_bin }}/dropdb --if-exists -h /tmp tprocc"
+
+        - name: Create schema build script
+          copy:
+            dest: "~/tprocc-schema.tcl"
+            content: |
+              dbset db pg
+              dbset bm TPC-C
+
+              dgset vu {{ ansible_processor_cores }}
+
+              diset connection pg_host {{ hostvars[inventory_hostname].ansible_default_ipv4.address if hostvars[inventory_hostname].driver is defined else '/tmp' }}
+              diset connection pg_port {{ postgres_port }}
+              diset tpcc pg_superuser {{ ansible_user_id }}
+              diset tpcc pg_superuserpass {{ lookup('password', '{{ playbook_dir }}/../credentials/{{ ansible_user_id }}.txt') }}
+              diset tpcc pg_defaultdbase postgres
+              diset tpcc pg_user {{ ansible_user_id }}
+              diset tpcc pg_pass {{ lookup('password', '{{ playbook_dir }}/../credentials/{{ ansible_user_id }}.txt') }}
+              diset tpcc pg_dbase tprocc
+
+              diset tpcc pg_count_ware {{ TPROCC_WAREHOUSES }}
+              diset tpcc pg_num_vu {{ TPROCC_SCHEMA_USERS }}
+              diset tpcc pg_partition {{ TPROCC_PARTITION }}
+              diset tpcc pg_oracompat {{ TPROCC_ORACLE_COMPAT }}
+              diset tpcc pg_storedprocs {{ TPROCC_STORED_PROCS }}
+
+              print dict
+              buildschema
+              waittocomplete
+          delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
+
+        - name: Create tprocc database and schema
+          shell: |
+            echo "Creating schema using HammerDB..."
+            ./hammerdbcli auto ~/tprocc-schema.tcl
+          args:
+            chdir: /usr/local/HammerDB-4.3
+          delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
+
+        - name: Create pg_prewarm extension
+          command: |
+            {{ postgres_bin }}/psql -h /tmp -c "CREATE EXTENSION IF NOT EXISTS pg_prewarm;" tprocc
+
+        - include: tools/backup-postgres.yml
+
+      when: not dump_file.stat.exists
+
+    - include: tools/restore-postgres.yml
+      when: dump_file.stat.exists
+
+    - name: Create extensions
+      include_role:
+        name: create-extensions
+      vars:
+        database: tprocc

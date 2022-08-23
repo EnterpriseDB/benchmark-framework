@@ -1,0 +1,11 @@
+# Stop pg_stat_database monitoring
+
+- name: Stop pg_stat_database monitoring
+  shell: |
+    kill $(ps -ef | grep pgstatdb_monitor.sh | grep -v grep | awk '{ print $2 }')
+
+- name: Download pg_stat_database log
+  fetch:
+    src: "{{ pgstatdb_log }}"
+    dest: ../results/
+    flat: yes

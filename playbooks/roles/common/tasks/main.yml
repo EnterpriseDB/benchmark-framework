@@ -1,0 +1,26 @@
+---
+
+- name: Set Variables for Postgres DB Type
+  set_fact:
+    postgres_port: 5432
+    postgres_user: postgres
+    postgres_bin: /usr/pgsql-14/bin
+  when: POSTGRES_DB_TYPE == 'postgres'
+
+- name: Set Variables for EPAS DB Type
+  set_fact:
+    postgres_port: 5444
+    postgres_user: enterprisedb
+    postgres_bin: /usr/edb/as14/bin
+  when: POSTGRES_DB_TYPE == 'epas'
+
+- name: Determine if local config exists
+  local_action: stat path=../../ansible-local/hooks/config.yml
+  register: local_config
+
+- name: Calling config hook
+  debug:
+    msg: "{{ 'Loading additional config from ../../ansible-local/hooks/config.yml' if local_config.stat.exists else 'Local config not found.' }}"
+
+- include_vars: ../../ansible-local/hooks/config.yml
+  when: local_config.stat.exists

@@ -1,0 +1,6 @@
+- include: tools/stop-postgres.yml
+
+- name: Remove old PostgreSQL data
+  file:
+    path: ~/pgsql/data
+    state: absent
