@@ -22,7 +22,7 @@ each benchmark machine.
 * Run ```ansible-playbook -i inventory.yml -l benchmark playbooks/config-system.yml``` to install/configure the machines 
 in the benchmark group.
 * Edit config.yml as required.
-* Run one of the run scripts to execute a benchmark test.
+* Run the *run-benchmark.sh* script to execute a benchmark test.
 
 ## Configuration files
 
