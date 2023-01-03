@@ -1,5 +1,7 @@
 #!/bin/bash
 
+SYSPREFIX='edb-bench'
+
 usage () {
   echo "Usage: $0 pgbench|tprocc|tproch [text|table (default: text)] [<path to logs (default: .)>]"
   echo
@@ -31,8 +33,9 @@ pgbench_table () {
 
   for FILE in $1/pgbench-20*.log
   do
-    HOST_NUM=$(echo $FILE | awk -F '-' '{ print $3 }' | sed 's/cto//g')
-    RUN_NUM=$(echo $FILE | awk -F '-' '{ print $4 }' | sed 's/run//g')
+    BENCH=${FILE/${SYSPREFIX}/}
+    HOST_NUM=$(echo $BENCH | awk -F '-' '{ print $3 }')
+    RUN_NUM=$(echo $BENCH | awk -F '-' '{ print $4 }' | sed 's/run//g')
     TPS=$(grep "tps = " $FILE | awk '{ print $3 }')
 
     if [ $PREV_RUN -ne $RUN_NUM ]; then
@@ -60,8 +63,9 @@ tprocc_table() {
 
   for FILE in $1/tprocc-20*.log
   do
-    HOST_NUM=$(echo $FILE | awk -F '-' '{ print $3 }' | sed 's/cto//g')
-    RUN_NUM=$(echo $FILE | awk -F '-' '{ print $4 }' | sed 's/run//g')
+    BENCH=${FILE/${SYSPREFIX}/}
+    HOST_NUM=$(echo $BENCH | awk -F '-' '{ print $3 }')
+    RUN_NUM=$(echo $BENCH | awk -F '-' '{ print $4 }' | sed 's/run//g')
     NOPM=$(grep NOPM $FILE | awk '{ print $7 }')
     TPM=$(grep NOPM $FILE | awk '{ print $10 }')
 
@@ -90,8 +94,9 @@ tproch_table () {
 
   for FILE in $1/tproch-20*.log
   do
-    HOST_NUM=$(echo $FILE | awk -F '-' '{ print $3 }' | sed 's/cto//g')
-    RUN_NUM=$(echo $FILE | awk -F '-' '{ print $4 }' | sed 's/run//g')
+    BENCH=${FILE/${SYSPREFIX}/}
+    HOST_NUM=$(echo $BENCH | awk -F '-' '{ print $3 }')
+    RUN_NUM=$(echo $BENCH | awk -F '-' '{ print $4 }' | sed 's/run//g')
     GEOM=$(grep Geometric $FILE | awk '{s+=$11}END{print s/NR}' RS="\n")
 
     if [ $PREV_RUN -ne $RUN_NUM ]; then
