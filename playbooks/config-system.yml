@@ -12,10 +12,16 @@
       become: yes
 
     - name: Ensure the system is fully updated
-      yum:
+      dnf:
         name: "*"
         state: latest
         update_cache: yes
+      become: yes
+
+    - name: Setup EPEL
+      dnf:
+        name: epel-release
+        state: present
       become: yes
 
     - name: Import the PostgreSQL package signing key
@@ -25,7 +31,7 @@
       become: yes
 
     - name: Setup the PostgreSQL repo
-      yum:
+      dnf:
         name: "https://download.postgresql.org/pub/repos/yum/reporpms/EL-{{ ansible_facts['distribution_major_version'] }}-x86_64/pgdg-redhat-repo-latest.noarch.rpm"
         state: present
       become: yes
@@ -43,7 +49,7 @@
       become: yes
 
     - name: Setup the EDB repo
-      yum:
+      dnf:
         name: https://yum.enterprisedb.com/edbrepos/edb-repo-latest.noarch.rpm
         state: present
         disable_gpg_check: yes
@@ -72,7 +78,8 @@
           - bzip2
           - chrony
           - clang
-          - epel-release
+          - dbt2-common
+          - dbt2-pg14-extensions         
           - edb-as14-server
           - edb-as14-server-devel
           - edb-as14-server-contrib
@@ -108,6 +115,7 @@
           - psmisc
           - python3-devel
           - python3-firewall
+          - R-core
           - readline-devel
           - sysstat
           - systemd-devel
