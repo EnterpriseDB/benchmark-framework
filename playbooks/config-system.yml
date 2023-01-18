@@ -5,6 +5,19 @@
     - common
 
   tasks:
+    - name: Ensure the pgdg96 repo is disabled
+      command: dnf config-manager --set-disabled pgdg96
+      args:
+        warn: false
+      become: yes
+
+    - name: Ensure the system is fully updated
+      yum:
+        name: "*"
+        state: latest
+        update_cache: yes
+      become: yes
+
     - name: Import the PostgreSQL package signing key
       rpm_key:
         state: present
@@ -92,6 +105,7 @@
           - postgresql14-contrib-debuginfo
           - postgresql14-devel-debuginfo
           - postgresql14-server-debuginfo
+          - psmisc
           - python3-devel
           - python3-firewall
           - readline-devel
