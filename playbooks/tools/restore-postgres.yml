@@ -10,6 +10,9 @@
 - name: Preserve existing server config
   shell: "cp ~/pgsql/data/postgresql.conf ~/pgsql"
 
+- name: Ensure a tuning config is present even if empty
+  shell: "touch ~/pgsql/data/postgresql.auto.conf"
+
 - name: Preserve existing tuning config
   shell: "cp ~/pgsql/data/postgresql.auto.conf ~/pgsql"
 
