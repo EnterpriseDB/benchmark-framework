@@ -1,0 +1,162 @@
+---
+- hosts:
+    - benchmark
+  gather_facts: no
+
+  roles:
+    - common
+
+  tasks:
+    - include: tools/stop-postgres.yml
+      when: DBT2_CLEAR_CACHE_AND_PREWARM
+
+    - name: Clear kernel cache and swap
+      shell: |
+        sync
+        echo 3 > /proc/sys/vm/drop_caches
+        swapoff -a
+        swapon -a
+      become: yes
+      when: DBT2_CLEAR_CACHE_AND_PREWARM
+
+- hosts:
+    - benchmark
+
+  roles:
+    - common
+
+  tasks:
+
+    - include: tools/start-postgres.yml
+
+    - name: Generate the run log name
+      set_fact:
+        run_log: "~/pgsql/data/dbt2-{{ ansible_date_time.year }}{{ ansible_date_time.month }}{{ ansible_date_time.day }}{{ ansible_date_time.hour }}{{ ansible_date_time.minute }}-{{ inventory_hostname_short }}-run{{ RUN_NUM }}-c{{ DBT2_WORKLOAD_DB_CONNECTIONS }}-d{{ DBT2_WORKLOAD_TEST_DURATION }}-w{{ DBT2_WORKLOAD_NUMBER_OF_WAREHOUSES }}.log"
+
+    - name: Run log names
+      debug:
+        msg: "{{ run_log }}"
+
+    - name: Make sure we have a directory for the log file if using a driver machine
+      file:
+        path: ~/pgsql/data/
+        state: directory
+      when: hostvars[inventory_hostname].driver is defined
+      delegate_to: "{{ hostvars[inventory_hostname].driver }}"
+
+    - name: Record the config
+      shell: |
+        echo "################################################################################" >> {{ run_log }}
+        echo "Run started: $(date)" >> {{ run_log }}
+        echo "################################################################################" >> {{ run_log }}
+        echo "" >> {{ run_log }}
+      delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
+
+    - name: Log pre-run stats
+      include_role:
+        name: log-stats
+      vars:
+        log_file: "{{ run_log }}"
+        database: dbt2
+        host: "{{ hostvars[inventory_hostname].ansible_default_ipv4.address if hostvars[inventory_hostname].driver is defined else 'localhost' }}"
+
+    - name: Generate the buffercache log name
+      set_fact:
+        buffercache_log: "~/pgsql/data/dbt2-buffercache-{{ ansible_date_time.year }}{{ ansible_date_time.month }}{{ ansible_date_time.day }}{{ ansible_date_time.hour }}{{ ansible_date_time.minute }}-{{ inventory_hostname_short }}-run{{ RUN_NUM }}-c{{ DBT2_WORKLOAD_DB_CONNECTIONS }}-d{{ DBT2_WORKLOAD_TEST_DURATION }}-w{{ DBT2_WORKLOAD_NUMBER_OF_WAREHOUSES }}.csv"
+      when: MONITOR_PG_BUFFERCACHE
+
+    - name: Start monitoring pg_buffercache
+      include: tools/start-buffercache-monitor.yml
+      when: MONITOR_PG_BUFFERCACHE
+      delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
+
+    - name: Generate the pg_stat_database log name
+      set_fact:
+        pgstatdb_log: "~/pgsql/data/dbt2-pgstatdb-{{ ansible_date_time.year }}{{ ansible_date_time.month }}{{ ansible_date_time.day }}{{ ansible_date_time.hour }}{{ ansible_date_time.minute }}-{{ inventory_hostname_short }}-run{{ RUN_NUM }}-c{{ DBT2_WORKLOAD_DB_CONNECTIONS }}-d{{ DBT2_WORKLOAD_TEST_DURATION }}-w{{ DBT2_WORKLOAD_NUMBER_OF_WAREHOUSES }}.csv"
+      when: MONITOR_PG_STAT_DATABASE
+
+    - name: Start monitoring pg_stat_database
+      include: tools/start-pgstatdb-monitor.yml
+      when: MONITOR_PG_STAT_DATABASE
+      delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
+
+    - name: Log prewarm start time
+      shell: |
+        echo "################################################################################" >> {{ run_log }}
+        echo "Pre-warm started: $(date)" >> {{ run_log }}
+        echo "################################################################################" >> {{ run_log }}
+        echo "" >> {{ run_log }}
+      when: DBT2_CLEAR_CACHE_AND_PREWARM
+      delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
+
+    - name: Prewarm the database
+      command: |
+        {{ postgres_bin }}/psql -h localhost -c "SELECT relname, pg_prewarm(c.oid::regclass) FROM pg_class c WHERE relname LIKE 'dbt2_%' AND (c.relkind = 'r' OR c.relkind = 'i');" dbt2
+      when: DBT2_CLEAR_CACHE_AND_PREWARM
+
+    - name: Log benchmark start time
+      shell: |
+        echo "################################################################################" >> {{ run_log }}
+        echo "Benchmark started: $(date)" >> {{ run_log }}
+        echo "################################################################################" >> {{ run_log }}
+        echo "" >> {{ run_log }}
+      delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
+
+    - name: Run the DBT2 client (app server)
+      shell: "nohup dbt2-client -a pgsql -l {{ postgres_port }} -d {{ hostvars[inventory_hostname].ansible_default_ipv4.address if hostvars[inventory_hostname].driver is defined else 'localhost' }} -c {{ DBT2_WORKLOAD_DB_CONNECTIONS }} -b dbt2 -s 0 -o ~/pgsql/data > /dev/null 2>&1 &"
+      delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
+      environment:
+        PGPASSWORD: "{{ lookup('password', '{{ playbook_dir }}/../credentials/{{ ansible_user_id }}.txt') }}"
+
+    - name: Pause for {{ DBT2_WORKLOAD_DB_CONNECTIONS  * 2 }} seconds whist the DBT2 client warms up
+      pause:
+        seconds: "{{ DBT2_WORKLOAD_DB_CONNECTIONS  * 2 }}"
+
+    - name: Run the dbt2 driver (terminal)
+      shell: "time (dbt2-driver3 -a pgsql -d localhost -l {{ DBT2_WORKLOAD_TEST_DURATION }} -wmin 1 -wmax {{ DBT2_WORKLOAD_NUMBER_OF_WAREHOUSES }} -w {{ DBT2_WORKLOAD_NUMBER_OF_WAREHOUSES }} -outdir ~/pgsql/data -altered 1 -b dbt2 -ktd 0 -ktn 0 -kto 0 -ktp 0 -kts 0 -ttd 0 -ttn 0 -tto 0 -ttp 0 -tts 0 > /dev/null) >> {{ run_log }} 2>&1"
+      delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
+      environment:
+        PGPASSWORD: "{{ lookup('password', '{{ playbook_dir }}/../credentials/{{ ansible_user_id }}.txt') }}"
+
+    - name: Kill the DBT2 client
+      shell: killall dbt2-client
+      ignore_errors: yes
+      delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
+
+    - name: Post-process the DBT2 results
+      shell: echo "" >> {{ run_log }} && bash -c 'dbt2-post-process $(find ~/pgsql/data/ -maxdepth 1 -name mix*.log -size +0 -print) >> {{ run_log }}'
+      delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
+
+    - name: Record the stats
+      shell: |
+        echo "" >> {{ run_log }}
+        echo "################################################################################" >> {{ run_log }}
+        echo "Benchmark completed: $(date)" >> {{ run_log }}
+        echo "################################################################################" >> {{ run_log }}
+        echo "" >> {{ run_log }}
+      delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
+
+    - name: Stop monitoring pg_buffercache
+      include: tools/stop-buffercache-monitor.yml
+      when: MONITOR_PG_BUFFERCACHE
+      delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
+
+    - name: Stop monitoring pg_stat_database
+      include: tools/stop-pgstatdb-monitor.yml
+      when: MONITOR_PG_STAT_DATABASE
+      delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
+
+    - name: Log post-run stats
+      include_role:
+        name: log-stats
+      vars:
+        log_file: "{{ run_log }}"
+        database: dbt2
+        host: "{{ hostvars[inventory_hostname].ansible_default_ipv4.address if hostvars[inventory_hostname].driver is defined else 'localhost' }}"
+
+    - name: Download results
+      fetch:
+        src: "{{ run_log }}"
+        dest: ../results/
+        flat: yes
+      delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"

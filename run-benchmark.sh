@@ -1,7 +1,7 @@
 #!/bin/sh
 
 usage () {
-  echo "Usage: $0 pgbench|tprocc|tproch [<number of runs (default: 6)>] [<first run number (default 1)>]"
+  echo "Usage: $0 dbt2|pgbench|tprocc|tproch [<number of runs (default: 6)>] [<first run number (default 1)>]"
   echo
   echo "Run a benchmark of the specified type, optionally specifying the number of runs and the first run number."
   exit 1
@@ -11,7 +11,7 @@ if [ $# -lt 1 ]; then
   usage
 fi
 
-if [ $1 != "pgbench" -a $1 != "tprocc" -a $1 != "tproch" ]; then
+if [ $1 != "dbt2" -a $1 != "pgbench" -a $1 != "tprocc" -a $1 != "tproch" ]; then
   usage
 fi
 

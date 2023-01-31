@@ -1,0 +1,12 @@
+---
+- import_playbook: clean-postgres.yml
+- import_playbook: tune-sysctls.yml
+- import_playbook: init-postgres.yml
+
+- name: Tune Postgres for OLTP
+  import_playbook: tune-postgres.yml
+  vars:
+    BENCHMARK: dbt2
+
+- import_playbook: init-dbt2.yml
+- import_playbook: run-dbt2.yml

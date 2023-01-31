@@ -1,0 +1,65 @@
+---
+
+- hosts:
+    - benchmark
+
+  roles:
+    - common
+
+  tasks:
+
+    - include: tools/start-postgres.yml
+
+    - name: Generate a database ID
+      set_fact:
+        db_id: "dbt2-s{{ DBT2_WORKLOAD_NUMBER_OF_WAREHOUSES }}"
+
+    - name: "Check the status of the {{ db_id }} backup"
+      stat:
+        path: "~/pgsql/dump/{{ db_id }}.tar.gz"
+      register: dump_file
+
+    - name: Ensure dbt2 of proper scale exists
+      block:
+        - name: Drop any existing dbt2 database
+          command: "{{ postgres_bin }}/dropdb --if-exists -h /tmp dbt2"
+
+        - name: Create dbt2 profile
+          copy:
+            dest: "~/dbt2_profile.conf"
+            content: |
+              # PostgreSQL variables
+              PGUSER={{ ansible_user_id }}; export PGUSER
+              PGPORT={{ postgres_port }}; export PGPORT
+              PGPASSWORD={{ lookup('password', '{{ playbook_dir }}/../credentials/{{ ansible_user_id }}.txt') }}; export PGPASSWORD
+              PGHOST={{ hostvars[inventory_hostname].ansible_default_ipv4.address if hostvars[inventory_hostname].driver is defined else '/tmp' }}; export PGHOST
+
+              # dbt2 variables
+              DBT2DBNAME=dbt2; export DBT2DBNAME
+              DBT2PORT={{ postgres_port }}; export DBT2PORT
+              DBT2PGDATA=~/pgsql/data; export DBT2PGDATA
+          delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
+
+        - name: Create dbt2 database
+          command: "{{ postgres_bin }}/createdb -h /tmp dbt2"
+
+        - name: Create dbt2 schema
+          shell: |
+            echo "Creating dbt2..."
+            source ~/dbt2_profile.conf; PRIVILEGED=0 PATH={{ postgres_bin }}/:$PATH; dbt2-pgsql-build-db -u -w {{ DBT2_WORKLOAD_NUMBER_OF_WAREHOUSES }} -r
+          delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
+          environment:
+            PGPASSWORD: "{{ lookup('password', '{{ playbook_dir }}/../credentials/{{ ansible_user_id }}.txt') }}"
+
+        - include: tools/backup-postgres.yml
+
+      when: not dump_file.stat.exists
+
+    - include: tools/restore-postgres.yml
+      when: dump_file.stat.exists
+
+    - name: Create extensions
+      include_role:
+        name: create-extensions
+      vars:
+        database: dbt2
