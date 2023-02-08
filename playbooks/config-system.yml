@@ -5,8 +5,8 @@
     - common
 
   tasks:
-    - name: Ensure the pgdg96 repo is disabled
-      command: dnf config-manager --set-disabled pgdg96
+    - name: Ensure the pgdg10 repo is disabled
+      command: dnf config-manager --set-disabled pgdg10
       args:
         warn: false
       become: yes
