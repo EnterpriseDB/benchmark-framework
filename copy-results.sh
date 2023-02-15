@@ -18,6 +18,7 @@ copy_files () {
   done
 }
 
+copy_files "$1" "$2" dbt2
 copy_files "$1" "$2" tprocc
 copy_files "$1" "$2" tproch
 copy_files "$1" "$2" pgbench
