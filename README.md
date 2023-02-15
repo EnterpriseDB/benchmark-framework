@@ -472,3 +472,14 @@ Wrote results/pgbench-buffercache-202205181030-cto13-run1-s15000-c450-T3600.png
 ```
 
 ![pgbench-buffercache-202205181030-cto13-run1-s15000-c450-T3600.png](images/plot-csv.png)
+
+Here is how we might post-process an entire set of results:
+
+```bash
+for f in *buffercache*.csv; do
+  python3 ~/git/autotuning/ansible/plot-csv.py $f -s area -p --ylabel '%age of shared_buffers'
+done  
+for f in *pgstatdb*.csv; do
+  python3 ~/git/autotuning/ansible/plot-csv.py $f -s area -p --ylabel '%age of Blocks'
+done  
+```
