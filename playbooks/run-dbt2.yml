@@ -31,7 +31,7 @@
 
     - name: Generate the run log name
       set_fact:
-        run_log: "~/pgsql/data/dbt2-{{ ansible_date_time.year }}{{ ansible_date_time.month }}{{ ansible_date_time.day }}{{ ansible_date_time.hour }}{{ ansible_date_time.minute }}-{{ inventory_hostname_short }}-run{{ RUN_NUM }}-c{{ DBT2_WORKLOAD_DB_CONNECTIONS }}-d{{ DBT2_WORKLOAD_TEST_DURATION }}-w{{ DBT2_WORKLOAD_NUMBER_OF_WAREHOUSES }}.log"
+        run_log: "~/pgsql/data/dbt2-{{ ansible_date_time.year }}{{ ansible_date_time.month }}{{ ansible_date_time.day }}{{ ansible_date_time.hour }}{{ ansible_date_time.minute }}-{{ inventory_hostname_short }}-run{{ RUN_NUM }}-d{{ DBT2_WORKLOAD_TEST_DURATION }}-w{{ DBT2_WORKLOAD_NUMBER_OF_WAREHOUSES }}.log"
 
     - name: Run log names
       debug:
@@ -62,7 +62,7 @@
 
     - name: Generate the buffercache log name
       set_fact:
-        buffercache_log: "~/pgsql/data/dbt2-buffercache-{{ ansible_date_time.year }}{{ ansible_date_time.month }}{{ ansible_date_time.day }}{{ ansible_date_time.hour }}{{ ansible_date_time.minute }}-{{ inventory_hostname_short }}-run{{ RUN_NUM }}-c{{ DBT2_WORKLOAD_DB_CONNECTIONS }}-d{{ DBT2_WORKLOAD_TEST_DURATION }}-w{{ DBT2_WORKLOAD_NUMBER_OF_WAREHOUSES }}.csv"
+        buffercache_log: "~/pgsql/data/dbt2-buffercache-{{ ansible_date_time.year }}{{ ansible_date_time.month }}{{ ansible_date_time.day }}{{ ansible_date_time.hour }}{{ ansible_date_time.minute }}-{{ inventory_hostname_short }}-run{{ RUN_NUM }}-d{{ DBT2_WORKLOAD_TEST_DURATION }}-w{{ DBT2_WORKLOAD_NUMBER_OF_WAREHOUSES }}.csv"
       when: MONITOR_PG_BUFFERCACHE
 
     - name: Start monitoring pg_buffercache
@@ -72,7 +72,7 @@
 
     - name: Generate the pg_stat_database log name
       set_fact:
-        pgstatdb_log: "~/pgsql/data/dbt2-pgstatdb-{{ ansible_date_time.year }}{{ ansible_date_time.month }}{{ ansible_date_time.day }}{{ ansible_date_time.hour }}{{ ansible_date_time.minute }}-{{ inventory_hostname_short }}-run{{ RUN_NUM }}-c{{ DBT2_WORKLOAD_DB_CONNECTIONS }}-d{{ DBT2_WORKLOAD_TEST_DURATION }}-w{{ DBT2_WORKLOAD_NUMBER_OF_WAREHOUSES }}.csv"
+        pgstatdb_log: "~/pgsql/data/dbt2-pgstatdb-{{ ansible_date_time.year }}{{ ansible_date_time.month }}{{ ansible_date_time.day }}{{ ansible_date_time.hour }}{{ ansible_date_time.minute }}-{{ inventory_hostname_short }}-run{{ RUN_NUM }}-d{{ DBT2_WORKLOAD_TEST_DURATION }}-w{{ DBT2_WORKLOAD_NUMBER_OF_WAREHOUSES }}.csv"
       when: MONITOR_PG_STAT_DATABASE
 
     - name: Start monitoring pg_stat_database
@@ -102,26 +102,11 @@
         echo "" >> {{ run_log }}
       delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
 
-    - name: Run the DBT2 client (app server)
-      shell: "nohup dbt2-client -a pgsql -l {{ postgres_port }} -d {{ hostvars[inventory_hostname].ansible_default_ipv4.address if hostvars[inventory_hostname].driver is defined else 'localhost' }} -c {{ DBT2_WORKLOAD_DB_CONNECTIONS }} -b dbt2 -s 0 -o ~/pgsql/data > /dev/null 2>&1 &"
+    - name: Run the dbt2 driver
+      shell: "time (dbt2-driver3 -a pgsql -b dbt2 -d {{ hostvars[inventory_hostname].ansible_default_ipv4.address if hostvars[inventory_hostname].driver is defined else '/tmp' }} -l {{ DBT2_WORKLOAD_TEST_DURATION }} -wmin 1 -wmax {{ DBT2_WORKLOAD_NUMBER_OF_WAREHOUSES }} -w {{ DBT2_WORKLOAD_NUMBER_OF_WAREHOUSES }} -outdir ~/pgsql/data -altered 1 -ktd 0 -ktn 0 -kto 0 -ktp 0 -kts 0 -ttd 0 -ttn 0 -tto 0 -ttp 0 -tts 0 > /dev/null) >> {{ run_log }} 2>&1"
       delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
       environment:
         PGPASSWORD: "{{ lookup('password', '{{ playbook_dir }}/../credentials/{{ ansible_user_id }}.txt') }}"
-
-    - name: Pause for {{ DBT2_WORKLOAD_DB_CONNECTIONS  * 2 }} seconds whist the DBT2 client warms up
-      pause:
-        seconds: "{{ DBT2_WORKLOAD_DB_CONNECTIONS  * 2 }}"
-
-    - name: Run the dbt2 driver (terminal)
-      shell: "time (dbt2-driver3 -a pgsql -d localhost -l {{ DBT2_WORKLOAD_TEST_DURATION }} -wmin 1 -wmax {{ DBT2_WORKLOAD_NUMBER_OF_WAREHOUSES }} -w {{ DBT2_WORKLOAD_NUMBER_OF_WAREHOUSES }} -outdir ~/pgsql/data -altered 1 -b dbt2 -ktd 0 -ktn 0 -kto 0 -ktp 0 -kts 0 -ttd 0 -ttn 0 -tto 0 -ttp 0 -tts 0 > /dev/null) >> {{ run_log }} 2>&1"
-      delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
-      environment:
-        PGPASSWORD: "{{ lookup('password', '{{ playbook_dir }}/../credentials/{{ ansible_user_id }}.txt') }}"
-
-    - name: Kill the DBT2 client
-      shell: killall dbt2-client
-      ignore_errors: yes
-      delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
 
     - name: Post-process the DBT2 results
       shell: echo "" >> {{ run_log }} && bash -c 'dbt2-post-process $(find ~/pgsql/data/ -maxdepth 1 -name mix*.log -size +0 -print) >> {{ run_log }}'
