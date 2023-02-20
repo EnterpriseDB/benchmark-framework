@@ -28,9 +28,11 @@
       
           sleep 10
       done
+  delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"    
 
 - name: Start pg_stat_database monitoring
   shell: |
     nohup ./pgstatdb_monitor.sh >> {{ pgstatdb_log }} &
   environment:
     PGPASSWORD: "{{ lookup('password', '{{ playbook_dir }}/../credentials/{{ ansible_user_id }}.txt') }}"
+  delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"  

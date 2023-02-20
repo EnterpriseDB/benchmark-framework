@@ -77,6 +77,11 @@
         state: directory
       when: hostvars[inventory_hostname].driver is defined
       delegate_to: "{{ hostvars[inventory_hostname].driver }}"
+    
+    - name: Clear out any old files that may be present on drivers
+      shell: rm -f ~/pgsql/data/*
+      when: hostvars[inventory_hostname].driver is defined
+      delegate_to: "{{ hostvars[inventory_hostname].driver }}"       
 
     - name: Record the config
       shell: |
@@ -115,7 +120,6 @@
     - name: Start monitoring pg_buffercache
       include: tools/start-buffercache-monitor.yml
       when: MONITOR_PG_BUFFERCACHE
-      delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
 
     - name: Generate the pg_stat_database log name
       set_fact:
@@ -125,7 +129,6 @@
     - name: Start monitoring pg_stat_database
       include: tools/start-pgstatdb-monitor.yml
       when: MONITOR_PG_STAT_DATABASE
-      delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
 
     - name: Log prewarm start time
       shell: |
@@ -167,12 +170,10 @@
     - name: Stop monitoring pg_buffercache
       include: tools/stop-buffercache-monitor.yml
       when: MONITOR_PG_BUFFERCACHE
-      delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
 
     - name: Stop monitoring pg_stat_database
       include: tools/stop-pgstatdb-monitor.yml
       when: MONITOR_PG_STAT_DATABASE
-      delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
 
     - name: Log post-run stats
       include_role:
