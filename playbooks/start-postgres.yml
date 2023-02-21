@@ -7,4 +7,4 @@
   - common
 
   tasks:
-    - include: tools/start-postgres.yml
+    - include_tasks: tools/start-postgres.yml

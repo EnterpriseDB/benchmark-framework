@@ -7,4 +7,4 @@
   - common
 
   tasks:
-    - include: tools/clean-postgres.yml
+    - include_tasks: tools/clean-postgres.yml

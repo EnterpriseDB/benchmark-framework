@@ -7,11 +7,11 @@
 # Variables:
 #   - db_id: Unique identifier that marks this backup.
 
-- include: tools/stop-postgres.yml
+- include_tasks: tools/stop-postgres.yml
 
 - name: Back up newly initialized benchmark contents
   shell: "tar -C ~/pgsql -cf - data | pigz > ~/pgsql/dump/{{ db_id }}.tar.gz"
   args:
     warn: false
 
-- include: tools/start-postgres.yml
+- include_tasks: tools/start-postgres.yml

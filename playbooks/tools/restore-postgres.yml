@@ -19,7 +19,7 @@
 - name: Preserve existing hba config
   shell: "cp ~/pgsql/data/pg_hba.conf ~/pgsql"
 
-- include: tools/clean-postgres.yml
+- include_tasks: tools/clean-postgres.yml
 
 - name: "Restore {{ db_id }} backup"
   shell: "pigz -cd ~/pgsql/dump/{{ db_id }}.tar.gz | tar -C ~/pgsql -x"
@@ -33,4 +33,4 @@
 - name: Restore existing hba config
   shell: "cp ~/pgsql/pg_hba.conf ~/pgsql/data"
 
-- include: tools/start-postgres.yml
+- include_tasks: tools/start-postgres.yml

@@ -9,7 +9,7 @@
 
   tasks:
 
-    - include: tools/start-postgres.yml
+    - include_tasks: tools/start-postgres.yml
 
     - name: Remove existing configuration
       file:
@@ -39,4 +39,4 @@
     - include_tasks: ../../ansible-local/hooks/tune-postgres.yml
       when: local_tune_postgres.stat.exists
 
-    - include: tools/stop-postgres.yml
+    - include_tasks: tools/stop-postgres.yml

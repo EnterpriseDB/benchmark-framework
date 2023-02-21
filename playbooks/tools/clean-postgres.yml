@@ -1,4 +1,4 @@
-- include: tools/stop-postgres.yml
+- include_tasks: tools/stop-postgres.yml
 
 - name: Remove old PostgreSQL data
   file:

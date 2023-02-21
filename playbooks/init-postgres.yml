@@ -48,11 +48,11 @@
     - include_tasks: ../../ansible-local/hooks/init-postgres.yml
       when: local_init_postgres.stat.exists
 
-    - include: tools/start-postgres.yml
+    - include_tasks: tools/start-postgres.yml
 
     - name: Set the {{ ansible_user_id }} role password
       shell: |
         {{ postgres_bin }}/psql -h /tmp -c "ALTER ROLE {{ ansible_user_id }} PASSWORD '{{ lookup('password', '{{ playbook_dir }}/../credentials/{{ ansible_user_id }}.txt') }}' ;" postgres
       when: hostvars[inventory_hostname].driver is defined
 
-    - include: tools/stop-postgres.yml
+    - include_tasks: tools/stop-postgres.yml

@@ -6,7 +6,7 @@
     - common
 
   tasks:
-    - include: tools/start-postgres.yml
+    - include_tasks: tools/start-postgres.yml
 
     - name: Generate a database ID
       set_fact:
@@ -63,11 +63,11 @@
           command: |
             {{ postgres_bin }}/psql -h /tmp -c "CREATE EXTENSION IF NOT EXISTS pg_prewarm;" tprocc
 
-        - include: tools/backup-postgres.yml
+        - include_tasks: tools/backup-postgres.yml
 
       when: not dump_file.stat.exists
 
-    - include: tools/restore-postgres.yml
+    - include_tasks: tools/restore-postgres.yml
       when: dump_file.stat.exists
 
     - name: Create extensions

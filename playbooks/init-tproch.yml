@@ -6,7 +6,7 @@
     - common
 
   tasks:
-    - include: tools/start-postgres.yml
+    - include_tasks: tools/start-postgres.yml
 
     - name: Generate a database ID
       set_fact:
@@ -54,11 +54,11 @@
             chdir: /usr/local/HammerDB-4.3
           delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
 
-        - include: tools/backup-postgres.yml
+        - include_tasks: tools/backup-postgres.yml
 
       when: not dump_file.stat.exists
 
-    - include: tools/restore-postgres.yml
+    - include_tasks: tools/restore-postgres.yml
       when: dump_file.stat.exists
 
     - name: Create extensions

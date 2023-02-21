@@ -7,7 +7,7 @@
     - common
 
   tasks:
-    - include: tools/stop-postgres.yml
+    - include_tasks: tools/stop-postgres.yml
       when: PGBENCH_CLEAR_CACHE_AND_PREWARM
 
     - name: Clear kernel cache and swap
@@ -27,7 +27,7 @@
 
   tasks:
 
-    - include: tools/start-postgres.yml
+    - include_tasks: tools/start-postgres.yml
 
     - name: Generate the run log name
       set_fact:
@@ -71,7 +71,7 @@
       when: MONITOR_PG_BUFFERCACHE
 
     - name: Start monitoring pg_buffercache
-      include: tools/start-buffercache-monitor.yml
+      include_tasks: tools/start-buffercache-monitor.yml
       when: MONITOR_PG_BUFFERCACHE
 
     - name: Generate the pg_stat_database log name
@@ -80,7 +80,7 @@
       when: MONITOR_PG_STAT_DATABASE
 
     - name: Start monitoring pg_stat_database
-      include: tools/start-pgstatdb-monitor.yml
+      include_tasks: tools/start-pgstatdb-monitor.yml
       when: MONITOR_PG_STAT_DATABASE
 
     - name: Log prewarm start time
@@ -121,11 +121,11 @@
       delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
 
     - name: Stop monitoring pg_buffercache
-      include: tools/stop-buffercache-monitor.yml
+      include_tasks: tools/stop-buffercache-monitor.yml
       when: MONITOR_PG_BUFFERCACHE
 
     - name: Stop monitoring pg_stat_database
-      include: tools/stop-pgstatdb-monitor.yml
+      include_tasks: tools/stop-pgstatdb-monitor.yml
       when: MONITOR_PG_STAT_DATABASE
 
     - name: Log post-run stats
