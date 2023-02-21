@@ -14,7 +14,12 @@ each benchmark machine.
 
 ## Quickstart
 
-* Install a minimal installation of Rocky.
+* Ensure Ansible has the modules it needs on the controller machine:
+
+  ```bash
+  ansible-galaxy install -r requirements.yml
+  ```
+* Install a minimal installation of Rocky on all the benchamrk systems.
 * Ensure the login user account can run sudo without a password.
 * Accept SSH fingerprints for each server on the machine running Ansible.
 * Install the appropriate SSH key to each server from the Ansible host, e.g. by using *ssh-copy-id*.
