@@ -5,17 +5,22 @@
     - common
 
   tasks:
+    - name: Update the DNF cache
+      command: dnf makecache
+      become: yes
+      
     - name: Ensure the pgdg10 repo is disabled
       command: dnf config-manager --set-disabled pgdg10
-      args:
-        warn: false
+      become: yes
+
+    - name: Enable the Code Ready Builder repo
+      shell: crb enable
       become: yes
 
     - name: Ensure the system is fully updated
       dnf:
         name: "*"
         state: latest
-        update_cache: yes
       become: yes
 
     - name: Setup EPEL
@@ -38,14 +43,10 @@
 
     - name: Disable the built-in PostgreSQL module
       command: dnf -qy module disable postgresql
-      args:
-        warn: false
       become: yes
 
     - name: Enable the PostgreSQL debuginfo repo
       command: dnf config-manager --set-enabled pgdg14-debuginfo
-      args:
-        warn: false
       become: yes
 
     - name: Setup the EDB repo
@@ -67,8 +68,6 @@
 
     - name: Force a dnf cache update to ensure keys are installed
       command: dnf -y makecache
-      args:
-        warn: false
       become: yes
 
     - name: Ensure required packages are installed
