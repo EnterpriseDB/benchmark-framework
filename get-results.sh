@@ -45,7 +45,7 @@ dbt2_table() {
       echo -n ","
     fi
 
-    echo -n "$NOTPM.0"
+    echo -n "$NOTPM"
   done
 
   echo ""
