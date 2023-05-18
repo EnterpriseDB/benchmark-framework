@@ -1,11 +1,12 @@
 # Copy this file to config.yml, and edit to suit
 
+# Postgres variant, should be one of epas or postgres.
+POSTGRES_DB_TYPE: postgres
+POSTGRES_DB_VERSION: 14
+
 # Variables necessary for setup / deployment
 EDB_REPO_USER:
 EDB_REPO_PW:
-
-# Postgres variant, should be one of epas or postgres.
-POSTGRES_DB_TYPE: postgres
 
 # Additional monitoring options
 MONITOR_PG_BUFFERCACHE: true

@@ -78,10 +78,7 @@
           - chrony
           - clang
           - dbt2-common
-          - dbt2-pg14-extensions         
-          - edb-as14-server
-          - edb-as14-server-devel
-          - edb-as14-server-contrib
+          - dbt2-pg{{ POSTGRES_DB_VERSION }}-extensions
           - firewalld
           - flex
           - gcc
@@ -105,12 +102,12 @@
           - perf
           - perl-devel
           - perl-ExtUtils-Embed
-          - postgresql14-contrib
-          - postgresql14-devel
-          - postgresql14-server
-          - postgresql14-contrib-debuginfo
-          - postgresql14-devel-debuginfo
-          - postgresql14-server-debuginfo
+          - postgresql{{ POSTGRES_DB_VERSION }}-contrib
+          - postgresql{{ POSTGRES_DB_VERSION }}-devel
+          - postgresql{{ POSTGRES_DB_VERSION }}-server
+          - postgresql{{ POSTGRES_DB_VERSION }}-contrib-debuginfo
+          - postgresql{{ POSTGRES_DB_VERSION }}-devel-debuginfo
+          - postgresql{{ POSTGRES_DB_VERSION }}-server-debuginfo
           - psmisc
           - python3-devel
           - python3-firewall
@@ -130,9 +127,9 @@
     - name: Ensure required packages are installed (EDB)
       dnf:
         name:
-          - edb-as14-server
-          - edb-as14-server-devel
-          - edb-as14-server-contrib
+          - edb-as{{ POSTGRES_DB_VERSION }}-server
+          - edb-as{{ POSTGRES_DB_VERSION }}-server-devel
+          - edb-as{{ POSTGRES_DB_VERSION }}-server-contrib
         state: latest
         update_cache: yes
       become: yes

@@ -4,14 +4,14 @@
   set_fact:
     postgres_port: 5432
     postgres_user: postgres
-    postgres_bin: /usr/pgsql-14/bin
+    postgres_bin: "/usr/pgsql-{{ POSTGRES_DB_VERSION }}/bin"
   when: POSTGRES_DB_TYPE == 'postgres'
 
 - name: Set Variables for EPAS DB Type
   set_fact:
     postgres_port: 5444
     postgres_user: enterprisedb
-    postgres_bin: /usr/edb/as14/bin
+    postgres_bin: "/usr/edb/as{{ POSTGRES_DB_VERSION }}/bin"
   when: POSTGRES_DB_TYPE == 'epas'
 
 - name: Determine if local config exists
