@@ -9,6 +9,11 @@
 
 - include_tasks: tools/stop-postgres.yml
 
+- name: Ensure the dump directory exists
+  file:
+    path: ~/pgsql/dump
+    state: directory
+
 - name: Back up newly initialized benchmark contents
   shell: "tar -C ~/pgsql -cf - data | pigz > ~/pgsql/dump/{{ db_id }}.tar.gz"
   args:
