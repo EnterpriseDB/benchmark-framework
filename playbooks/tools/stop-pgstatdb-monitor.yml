@@ -4,6 +4,7 @@
   shell: |
     kill $(ps -ef | grep pgstatdb_monitor.sh | grep -v grep | awk '{ print $2 }')
   delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
+  ignore_errors: true
 
 - name: Download pg_stat_database log
   fetch:

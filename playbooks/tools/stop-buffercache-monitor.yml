@@ -3,7 +3,8 @@
 - name: Stop buffer cache monitoring
   shell: |
     kill $(ps -ef | grep buffercache_monitor.sh | grep -v grep | awk '{ print $2 }')
-  delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"  
+  delegate_to: "{{ hostvars[inventory_hostname].driver if hostvars[inventory_hostname].driver is defined else omit }}"
+  ignore_errors: true
 
 - name: Download buffer cache log
   fetch:
